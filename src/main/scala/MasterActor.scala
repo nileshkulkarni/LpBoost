@@ -118,7 +118,7 @@ class MasterActor() extends Actor {
             phis(id) = phi
     }
 }
-
+/*
 object ActorFactory {
     val actorMap = new HashMap[Integer,ActorRef] with SynchronizedMap[Integer,ActorRef]
     def addActor(key: Integer,myActor: ActorRef)={
@@ -132,6 +132,21 @@ object ActorFactory {
         for ((k,v) <- actorMap) { 
             println("Key : " + k  + " actorRef  "+ v)
         }        // k is the key, v is the value
+        return wactor
+    }
+}
+*/
+
+object ActorFactory {
+    val actorMap = ofDim[ActorRef](2)
+    def addActor(key: Integer,myActor: ActorRef)={
+        actorMap(key) = myActor; 
+    }
+    def getActor(symbol:Integer): ActorRef = {
+        println("getActor : called with symbol " + symbol)
+        val wactor : ActorRef = actorMap(symbol) 
+        //val wactor : ActorRef = actorMap.get(symbol)
+        println("Returning actor: "+ wactor)
         return wactor
     }
 }
