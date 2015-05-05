@@ -1,3 +1,4 @@
+import java.util.Vector;
 public class DataPoint {
     Vector<Float> v;
     public DataPoint(Vector<Float> v){ 

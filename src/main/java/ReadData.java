@@ -6,7 +6,8 @@ import java.util.Vector;
 
 public class ReadData{
     public static DataSet buildVector(String file,String delimRegex) throws IOException,NumberFormatException, FileNotFoundException {
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(file));
             DataSet d = new DataSet();
             String line;
             while ((line = br.readLine()) != null) {
@@ -30,5 +31,9 @@ public class ReadData{
             }
             return d;
         }
-
-}
+        catch(Exception e){
+            e.printStackTrace();
+            return null;
+        }
+    } // end of buildVector
+} // end of class
