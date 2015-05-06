@@ -13,7 +13,7 @@ public class ReadData{
             while ((line = br.readLine()) != null) {
                // process the line
                 if(line.length()>1){
-                    delimRegex="\t";
+                    delimRegex=" ";
                     System.out.println("delimRegex : " + delimRegex);
                     String[] lines=line.split(delimRegex,2);
                     //String[] lines=line.split(" ",2);

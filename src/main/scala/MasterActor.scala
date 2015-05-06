@@ -17,7 +17,7 @@ class MasterActor() extends Actor {
     private var linesProcessed = 0
     private var result = 0
     private var fileSender: Option[ActorRef] = None
-    private var noOfPartitions = 2
+    private var noOfPartitions = 1
     private var noOfExamples = 4
     
     
@@ -52,16 +52,15 @@ class MasterActor() extends Actor {
                 sender ! doneProcessing(1)
                 //create actors
                 createActors()
-                updateBetaAndLambda()
+                //updateBetaAndLambda()
+                updateBetaAndLambdaInitialize() 
             }
         }
         case updatedWorkerVariables(id,wK,betaK,phi,lambda) => {
             println("Received response for weights and beta")
             furtherUpdates(id) = false
-            //for(a<- 0 untill noOfExamples){
             weights(id) = wK
             betas(id) = betaK;
-            //}
             updateLambdaKBetaK(id,phi,lambda)
             updateBetaAndLambda()
         }
@@ -93,10 +92,30 @@ class MasterActor() extends Actor {
         else
             return true
     }
+    def updateBetaAndLambdaInitialize() {
+        // compute Beta and lambda and call the update Weights function
+
+                for( i <- 0 until noOfExamples){
+                     con_weightsM(i) = 1.0/noOfExamples
+                     betaM =0.0
+                }
+                /*
+                println("Printing in master")
+                for (i<-0 until noOfExamples){
+                    println("Weight " + con_weightsM(i))
+                }
+                */
+                println("here noOfPartitions is " + noOfPartitions);
+                println("File Name " + fileName)
+                for( a <- 0 until noOfPartitions){
+                    var actorWorker: ActorRef = ActorFactory.getActor(a)
+                    println("Sending beta and lambda updates to actor " + a);
+                    actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
+                }
+                println("here1");
+    }
     def updateBetaAndLambda() {
         // compute Beta and lambda and call the update Weights function
-            
-
             if(!checkIfMoreUpdatesRequired()){
                 // Check if stopping criterion is met
                 if(checkForStoppingCriterion()){
@@ -108,7 +127,7 @@ class MasterActor() extends Actor {
                 for( a <- 0 until noOfPartitions){
                     var actorWorker: ActorRef = ActorFactory.getActor(a)
                     println("Sending beta and lambda updates to actor " + a);
-                    actorWorker ! updateWeightsBetaLambdaPhi(fileName,con_weightsM,betaM)
+                    actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
                 }
                 println("here1");
             }
