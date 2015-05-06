@@ -16,9 +16,10 @@ class MasterActor() extends Actor {
     private var totalLines = 0
     private var linesProcessed = 0
     private var result = 0
-    private var fileSender: Option[ActorRef] = None
+    //private var MainSender: Option[ActorRef] = None
+    private var MainSender: Option[ActorRef] = None
     private var noOfPartitions = 1
-    private var noOfExamples = 4
+    private var noOfExamples = 3
     
     
     private var weights = ofDim[Double](noOfPartitions,noOfExamples) 
@@ -33,15 +34,15 @@ class MasterActor() extends Actor {
     private var furtherUpdates = ofDim[Boolean](noOfPartitions)
 
     private var fileName="NULL"
-    private var maxOuterIterations = 2
+    private var maxOuterIterations = 3
 
     private var iterationNo = 0
     private var pho =0.0
-
     private var temp: Int = 1
     def this( fileName:String) ={
         this();
         this.fileName = fileName
+        noOfExamples = 3
         pho = 1.0
     }
     def receive = {
@@ -53,8 +54,9 @@ class MasterActor() extends Actor {
             } 
             else {
                 runningLpBoost = true
-                fileSender = Some(sender) // save reference to process invoker
-                sender ! doneProcessing(1)
+                //MainSender = Some(sender) // save reference to process invoker
+                MainSender = Some(sender) // save reference to process invoker
+                //sender ! doneProcessing(1)
                 //create actors
                 createActors()
                 //updateBetaAndLambda()
@@ -101,40 +103,48 @@ class MasterActor() extends Actor {
     def updateBetaAndLambdaInitialize() {
         // compute Beta and lambda and call the update Weights function
 
-                for( i <- 0 until noOfExamples){
-                     con_weightsM(i) = 1.0/noOfExamples
-                     betaM =0.0
-                }
-                /*
-                println("Printing in master")
-                for (i<-0 until noOfExamples){
-                    println("Weight " + con_weightsM(i))
-                }
-                */
-                println("here noOfPartitions is " + noOfPartitions);
-                println("File Name " + fileName)
-                for( a <- 0 until noOfPartitions){
-                    var actorWorker: ActorRef = ActorFactory.getActor(a)
-                    println("Sending beta and lambda updates to actor " + a);
-                    actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
-                    furtherUpdates(a) = true
-                }
-                println("Sent updates to all worker actors");
+            for( i <- 0 until noOfExamples){
+                 con_weightsM(i) = 1.0/noOfExamples
+                 betaM =0.0
+            }
+            /*
+            println("Printing in master")
+            for (i<-0 until noOfExamples){
+                println("Weight " + con_weightsM(i))
+            }
+            */
+            println("here noOfPartitions is " + noOfPartitions);
+            println("File Name " + fileName)
+            for( a <- 0 until noOfPartitions){
+                var actorWorker: ActorRef = ActorFactory.getActor(a)
+                println("Sending beta and lambda updates to actor " + a);
+                actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
+                furtherUpdates(a) = true
+            }
+            println("Sent updates to all worker actors");
     }
     def updateBetaAndLambda() {
+            println("Iteration no is " + iterationNo) 
             if(!checkIfMoreUpdatesRequired()){
                 // update betaM
                 betaM = 0;
+                println("All fine")
                 for(i <-0 until noOfPartitions){
                     betaM = betaM +lambdas(i) + pho*betas(i)
                 }
-                for(j <-0 until noOfExamples ){
+                println("All fine1")
+                println("No of partitions " + noOfPartitions)
+                println("No of examples " + noOfExamples)
+                println("Weights size "+ weights.size + " " + weights(0).size) 
+                println("Con Weights size "+ con_weightsM.size ) 
+                for(j <-0 until noOfExamples){
                     con_weightsM(j)=0
                     for(i <-0 until noOfPartitions){
                         con_weightsM(j) = pho*weights(i)(j) + phis(i)(j)
                     }
                     con_weightsM(j) = con_weightsM(j)/(noOfPartitions*pho)
                 }
+                println("All fine2")
                 betaM = betaM/(noOfPartitions*pho);
 
                 println("Master: BetaM : " + betaM);
@@ -142,6 +152,8 @@ class MasterActor() extends Actor {
                 // Check if stopping criterion is met
                 if(checkForStoppingCriterion()){
                     println("Stopping Criterion met.")
+                    MainSender.map(_ ! doneProcessing(1))
+                    //fileSender.map(_ ! result)  // provide result to process invoker
                     return
                 }
                 println("here noOfPartitions is " + noOfPartitions);
@@ -160,25 +172,6 @@ class MasterActor() extends Actor {
             phis(id) = phi
     }
 }
-/*
-object ActorFactory {
-    val actorMap = new HashMap[Integer,ActorRef] with SynchronizedMap[Integer,ActorRef]
-    def addActor(key: Integer,myActor: ActorRef)={
-        actorMap.put(key,myActor) 
-    }
-    def getActor(symbol:Integer): ActorRef = {
-        println("getActor : called with symbol " + symbol)
-        val wactor : ActorRef = actorMap.get(symbol).asInstanceOf[ActorRef]
-        //val wactor : ActorRef = actorMap.get(symbol)
-        println("Returning actor: "+ wactor)
-        for ((k,v) <- actorMap) { 
-            println("Key : " + k  + " actorRef  "+ v)
-        }        // k is the key, v is the value
-        return wactor
-    }
-}
-*/
-
 object ActorFactory {
     val actorMap = ofDim[ActorRef](2)
     def addActor(key: Integer,myActor: ActorRef)={
