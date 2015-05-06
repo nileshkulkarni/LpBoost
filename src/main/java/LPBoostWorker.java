@@ -14,6 +14,7 @@ class DualVariables{
     public DualVariables(int M){
         this.beta = 0f;
         this.M = M;
+        this.weights = new double[M];
         for(int i =0;i<M;i++){
             weights[i] = 1.0f/M;
         }
@@ -76,6 +77,8 @@ public class LPBoostWorker{
         return bestLearner;
     }
     public static WorkerVariables optimize(Vector<DataPoint> e, Vector<Integer> l, float v1, float eps,MasterVariables mv){
+
+        System.out.println("Inside optimize");
    
         Vector<DataPoint> examples =e;
         Vector<Integer> labels = l;
@@ -85,20 +88,28 @@ public class LPBoostWorker{
         int M = examples.size();
         float D = 1.0f/(M*v);
 
+
         DualVariables dV = new DualVariables(M);
+        System.out.println("here");
         Vector<Stump> hypotheses = new Vector<Stump>();
 
         while(true){
 
+            System.out.println("Finding the most violating constraint");
             Stump candHyp = getMostViolatingStump(dV.weights,examples,labels);
+            System.out.println("Most Violating Stump: " + candHyp.toString());
+            System.out.println("Epsilon: " + epsilon);
             float classSum =0f;
             for(int i=0;i<examples.size();i++){
                 classSum += (dV.weights[i]) * (labels.elementAt(i)) * (candHyp.classify(examples.elementAt(i)));        
             }   
+            System.out.println("Class sum is: " + classSum);
+            System.out.println("Beta is: " + dV.beta);
             if((classSum <= (dV.beta + epsilon)) || (hypotheses.size() >= M)){
                 break;
             }   
             hypotheses.add(candHyp);
+            System.out.println("Hypostesis set size " + hypotheses.size());
             dV = solveOptimization(examples,labels,hypotheses,D,mv);
         }
 

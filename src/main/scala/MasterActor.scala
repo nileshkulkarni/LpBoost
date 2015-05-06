@@ -33,12 +33,16 @@ class MasterActor() extends Actor {
     private var furtherUpdates = ofDim[Boolean](noOfPartitions)
 
     private var fileName="NULL"
+    private var maxOuterIterations = 2
+
+    private var iterationNo = 0
+    private var pho =0.0
 
     private var temp: Int = 1
     def this( fileName:String) ={
         this();
         this.fileName = fileName
-        //intialize beta
+        pho = 1.0
     }
     def receive = {
         case startLpBoost() => {
@@ -46,7 +50,8 @@ class MasterActor() extends Actor {
                 // println just used for example purposes;
                 // Akka logger should be used instead
                 println("Warning: duplicate start message received")
-            } else {
+            } 
+            else {
                 runningLpBoost = true
                 fileSender = Some(sender) // save reference to process invoker
                 sender ! doneProcessing(1)
@@ -60,8 +65,9 @@ class MasterActor() extends Actor {
             println("Received response for weights and beta")
             furtherUpdates(id) = false
             weights(id) = wK
-            betas(id) = betaK;
+            betas(id) = betaK
             updateLambdaKBetaK(id,phi,lambda)
+            println("Yeyeye")
             updateBetaAndLambda()
         }
         case _ => println("message not recognized!")
@@ -85,12 +91,12 @@ class MasterActor() extends Actor {
     }
 
     def checkForStoppingCriterion(): Boolean={
-        if(temp==1){
-            temp =0
+        if(iterationNo >=maxOuterIterations){
+            return true
+        }
+        else{
             return false
         }
-        else
-            return true
     }
     def updateBetaAndLambdaInitialize() {
         // compute Beta and lambda and call the update Weights function
@@ -111,12 +117,28 @@ class MasterActor() extends Actor {
                     var actorWorker: ActorRef = ActorFactory.getActor(a)
                     println("Sending beta and lambda updates to actor " + a);
                     actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
+                    furtherUpdates(a) = true
                 }
-                println("here1");
+                println("Sent updates to all worker actors");
     }
     def updateBetaAndLambda() {
-        // compute Beta and lambda and call the update Weights function
             if(!checkIfMoreUpdatesRequired()){
+                // update betaM
+                betaM = 0;
+                for(i <-0 until noOfPartitions){
+                    betaM = betaM +lambdas(i) + pho*betas(i)
+                }
+                for(j <-0 until noOfExamples ){
+                    con_weightsM(j)=0
+                    for(i <-0 until noOfPartitions){
+                        con_weightsM(j) = pho*weights(i)(j) + phis(i)(j)
+                    }
+                    con_weightsM(j) = con_weightsM(j)/(noOfPartitions*pho)
+                }
+                betaM = betaM/(noOfPartitions*pho);
+
+                println("Master: BetaM : " + betaM);
+                // updating con_weightsM
                 // Check if stopping criterion is met
                 if(checkForStoppingCriterion()){
                     println("Stopping Criterion met.")
@@ -129,6 +151,7 @@ class MasterActor() extends Actor {
                     println("Sending beta and lambda updates to actor " + a);
                     actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
                 }
+                iterationNo = iterationNo+1
                 println("here1");
             }
     }

@@ -14,7 +14,7 @@ public class ReadData{
                // process the line
                 if(line.length()>1){
                     delimRegex=" ";
-                    System.out.println("delimRegex : " + delimRegex);
+                    //System.out.println("delimRegex : " + delimRegex);
                     String[] lines=line.split(delimRegex,2);
                     //String[] lines=line.split(" ",2);
                     //System.out.println("Line[0] " + lines[0]);

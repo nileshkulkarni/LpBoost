@@ -36,27 +36,32 @@ class WorkerActor extends Actor {
             var pho = 1.0
             println("No of examples " + D.examples.size())
             println("No of labels " + D.labels.size())
-            /*
-            println("Printing weights")
-            for (i<-0 until noOfExamples){
-                p/rintln("Weight " + weightM(i))
-            }
-            */
-            
+
             var mV = new MasterVariables(betaM,weightM,lambda,pho,phi,noOfExamples)
-            for(i<-0 until noOfExamples){
-                println("psi " + mV.psik(i))
-            }
-            println("pho " + mV.pho)
-            println("lambda " + mV.lambdak)
+            println("Sending master variables for optimization")
+
             var wV = LPBoostWorker.optimize(D.examples,D.labels, 0.07f,0.00001f,mV) 
+
+            for(i<-0 until noOfExamples){
+                println("wV.weights " + wV.weightsk(i))
+            }
+
             var weight = wV.weightsk
             var beta = wV.betak
             lambda = lambda + pho*(beta -betaM) 
+
             for(a<- 0 until noOfExamples){
                 phi(a) = phi(a) + pho*(weight(a) - weightM(a))
             }
+            println("Lambda " +lambda)
+
+            for(i<-0 until noOfExamples){
+                println("phi " + phi(i))
+            }
+
+            println("Sending updates to master");
             sender ! updatedWorkerVariables(id,weight,beta,phi,lambda)
+            println("Sent updates to master");
         }
         case _ => println("Error: Worker Actor: message not recognized")
     }

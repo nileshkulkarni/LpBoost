@@ -19,9 +19,11 @@ public class MasterVariables{
             this.weights[i] = weights[i];
             this.psik[i] = psik[i];
         }
+        /*
         for(int i =0;i<noOfExamples;i++){
             System.out.println("psik " + Integer.toString(i) + " " + Double.toString(psik[i]));
         }
+        */
     }
     public MasterVariables(int noOfExamples){
         this.noOfExamples = noOfExamples;
