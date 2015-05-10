@@ -16,7 +16,7 @@ object Main extends App {
 
         override def main(args: Array[String]) {
             val system = ActorSystem("System")
-            val actor = system.actorOf(Props(new MasterActor(args(0))))
+            val actor = system.actorOf(Props(new MasterActor(args(0),args(1))))
             implicit val ec = global
             implicit val timeout = Timeout(125 seconds)
             val future = actor ? startLpBoost()

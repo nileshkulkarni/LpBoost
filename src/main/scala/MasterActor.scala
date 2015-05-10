@@ -36,6 +36,8 @@ class MasterActor() extends Actor {
     private var furtherUpdates = ofDim[Boolean](noOfPartitions)
 
     private var fileName="NULL"
+    private var testFile="NULL"
+
     private var maxOuterIterations = 10
 
     private var iterationNo = 0
@@ -43,9 +45,10 @@ class MasterActor() extends Actor {
     private var temp: Int = 1
 
     private var D = new DataSet()
-    def this( fileName:String) ={
+    def this( fileName:String,testFile: String) ={
         this();
         this.fileName = fileName
+        this.testFile = testFile 
         this.D = ReadFile(fileName)
         noOfExamples = D.examples.size()
         weights = ofDim[Double](noOfPartitions,noOfExamples) 
@@ -210,7 +213,23 @@ class MasterActor() extends Actor {
         
         println("Rho " + pV.rho)
         println("No of hypo " + pV.alphas.size())
+        var boostClassfier = new BoostClassifier(pV.alphas, totalHypSet)
+        getAccuracy(testFile,boostClassfier)
         return pV
+    }
+
+    def getAccuracy(testFile: String,boostClassfier: BoostClassifier): Double={
+        var total=0.0f
+        var correct=0.0f
+        var testDataSet = ReadData.buildVector(testFile," ")
+        for( i<-0 until testDataSet.examples.size()){
+            total = total+1
+            if(boostClassfier.classify(testDataSet.examples.get(i)) * testDataSet.labels.get(i) > 0.0f)
+                correct = correct+1
+        }
+        var acc = correct/total
+        println("acc is " + acc)
+        return acc 
     }
 }
 object ActorFactory {
