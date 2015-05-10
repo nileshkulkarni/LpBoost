@@ -30,28 +30,22 @@ class DualVariables{
 }// end of class
 
 
-class PrimalVariables{
-   public float rho =0f;
-   public double[] alphas;
-   int N;
-   public PrimalVariables(int N){
-       this.N = N;
-       alphas = new double[N]; 
-   }
-   public PrimalVariables(PrimalVariables p){
-        this.rho =p.rho;
-        this.N = p.N;
-        this.alphas = new double[N]; 
-        for(int i =0;i<N;i++){
-            alphas[i] = p.alphas[i];
-        }
-   }
-}
-
 
 
 public class LPBoostWorker{
-    public static Stump getMostViolatingStump(double[] weights, Vector<DataPoint> examples, Vector<Integer> labels){
+    private DualVariables prev_dV;
+    private Vector<Stump> hypotheses ;
+    private int actorId;
+
+    LPBoostWorker(){
+        actorId =-1;
+    }
+    LPBoostWorker(int id){
+        prev_dV=null;
+        hypotheses = new Vector<Stump>();
+        actorId = id;
+    }
+    public  Stump getMostViolatingStump(double[] weights, Vector<DataPoint> examples, Vector<Integer> labels){
        float highestError=Float.NEGATIVE_INFINITY;
         Stump bestLearner=null;
         for(int i =0;i<examples.elementAt(0).size();i++){
@@ -63,20 +57,23 @@ public class LPBoostWorker{
                 sum1 += (stump1.classify(examples.elementAt(j))) * (labels.elementAt(j)) * (weights[j]);
                 sum2 += (stump2.classify(examples.elementAt(j))) * (labels.elementAt(j)) * (weights[j]);
             }   
-            if(sum1>highestError){
-                highestError=sum1;
-                bestLearner=new Stump(stump1.index,stump1.orientation);
-            }   
-    
-            if(sum2>highestError){
-                highestError=sum2;
-                bestLearner=new Stump(stump2.index,stump2.orientation);
+            if((actorId % 2) == 1){
+                if(sum1>highestError){
+                    highestError=sum1;
+                    bestLearner=new Stump(stump1.index,stump1.orientation);
+                }   
             }
-
+            else{
+                if(sum2>highestError){
+                    highestError=sum2;
+                    bestLearner=new Stump(stump2.index,stump2.orientation);
+                }
+            }
         }
         return bestLearner;
     }
-    public static WorkerVariables optimize(Vector<DataPoint> e, Vector<Integer> l, float v1, float eps,MasterVariables mv){
+
+    public  WorkerVariables optimize(Vector<DataPoint> e, Vector<Integer> l, float v1, float eps,MasterVariables mv){
 
         System.out.println("Inside optimize");
    
@@ -91,10 +88,12 @@ public class LPBoostWorker{
 
         DualVariables dV = new DualVariables(M);
         System.out.println("here");
-        Vector<Stump> hypotheses = new Vector<Stump>();
+        //Vector<Stump> hypotheses = new Vector<Stump>();
 
         while(true){
-
+            if(prev_dV!=null){
+                dV = prev_dV;
+            }
             System.out.println("Finding the most violating constraint");
             Stump candHyp = getMostViolatingStump(dV.weights,examples,labels);
             System.out.println("Most Violating Stump: " + candHyp.toString());
@@ -106,22 +105,29 @@ public class LPBoostWorker{
             System.out.println("Class sum is: " + classSum);
             System.out.println("Beta is: " + dV.beta);
             if((classSum <= (dV.beta + epsilon)) || (hypotheses.size() >= M)){
+                System.out.println("Breaking out");
+                // Since master has send updates its variables might have changed
+                dV = solveOptimization(examples,labels,hypotheses,D,mv);
+                prev_dV = null;
+                prev_dV = dV;
                 break;
             }   
             hypotheses.add(candHyp);
             System.out.println("Hypostesis set size " + hypotheses.size());
             dV = solveOptimization(examples,labels,hypotheses,D,mv);
+            prev_dV = null;
+            prev_dV = dV;
         }
 
         mv.lambdak = mv.lambdak + mv.pho*(dV.beta - mv.beta);
         for(int i =0;i<examples.size();i++){
             mv.psik[i]= mv.psik[i] + mv.pho*(dV.weights[i] - mv.weights[i]);
         }
-        WorkerVariables wV = new WorkerVariables(examples.size(), dV.beta,dV.weights, mv.lambdak, mv.psik);
+        WorkerVariables wV = new WorkerVariables(examples.size(), dV.beta,dV.weights, mv.lambdak, mv.psik,hypotheses);
         return wV;
     }
     
-    public static DualVariables solveOptimization(Vector<DataPoint> examples, Vector<Integer> labels, Vector<Stump> hypotheses, float d, MasterVariables mv){
+    public DualVariables solveOptimization(Vector<DataPoint> examples, Vector<Integer> labels, Vector<Stump> hypotheses, float d, MasterVariables mv){
         try{
             IloCplex cplex = new IloCplex();
             IloNumVar betak = cplex.numVar(Double.NEGATIVE_INFINITY,Double.POSITIVE_INFINITY);

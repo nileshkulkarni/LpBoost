@@ -4,10 +4,11 @@ import akka.actor.Actor
 
 import Array._
 
+import java.util.Vector
 import collection.mutable._
 
 case class startLpBoost() // This is the message recieved to start the process
-case class updatedWorkerVariables(id: Integer,wK: Array[Double], betaK: Double,phi:Array[Double] ,lambda:Double)
+case class updatedWorkerVariables(id: Integer,wK: Array[Double], betaK: Double,phi:Array[Double] ,lambda:Double, hypothesisSet: Vector[Stump])
 case class doneProcessing(status: Integer)
 
 class MasterActor() extends Actor {
@@ -16,11 +17,12 @@ class MasterActor() extends Actor {
     private var totalLines = 0
     private var linesProcessed = 0
     private var result = 0
-    //private var MainSender: Option[ActorRef] = None
+
     private var MainSender: Option[ActorRef] = None
-    private var noOfPartitions = 1
+
+    private var noOfPartitions = 2
     private var noOfExamples = 3
-    
+    private var HypothesisSet = new Vector [ Vector [Stump] ]();   
     
     private var weights = ofDim[Double](noOfPartitions,noOfExamples) 
     private var betas = ofDim[Double](noOfPartitions) 
@@ -34,23 +36,31 @@ class MasterActor() extends Actor {
     private var furtherUpdates = ofDim[Boolean](noOfPartitions)
 
     private var fileName="NULL"
-    private var maxOuterIterations = 3
+    private var maxOuterIterations = 10
 
     private var iterationNo = 0
     private var pho =0.0
     private var temp: Int = 1
+
+    private var D = new DataSet()
     def this( fileName:String) ={
         this();
         this.fileName = fileName
-        noOfExamples = 3
-        pho = 1.0
+        this.D = ReadFile(fileName)
+        noOfExamples = D.examples.size()
+        weights = ofDim[Double](noOfPartitions,noOfExamples) 
+        phis = ofDim[Double](noOfPartitions,noOfExamples) 
+        con_weightsM = ofDim[Double](noOfExamples) 
+        pho = 2.0
+        var totalHyp = 2*noOfExamples
+        HypothesisSet = new Vector[ Vector [Stump] ](noOfPartitions)
     }
     def receive = {
         case startLpBoost() => {
             if (runningLpBoost) {
                 // println just used for example purposes;
                 // Akka logger should be used instead
-                println("Warning: duplicate start message received")
+                println("[MASTER] Warning: duplicate start message received")
             } 
             else {
                 runningLpBoost = true
@@ -63,16 +73,23 @@ class MasterActor() extends Actor {
                 updateBetaAndLambdaInitialize() 
             }
         }
-        case updatedWorkerVariables(id,wK,betaK,phi,lambda) => {
-            println("Received response for weights and beta")
-            furtherUpdates(id) = false
+        case updatedWorkerVariables(id,wK,betaK,phi,lambda,hypothesisSetK) => {
+            println("[MASTER] Received response for weights and beta")
             weights(id) = wK
             betas(id) = betaK
+            println("Setting Hypothesis : current size " + HypothesisSet.size())
+            if(HypothesisSet.size() < id){
+                HypothesisSet.set(id,hypothesisSetK)
+            }
+            else{
+                HypothesisSet.add(id,hypothesisSetK)
+            }
             updateLambdaKBetaK(id,phi,lambda)
-            println("Yeyeye")
+            println("[MASTER] Yeyeye")
+            furtherUpdates(id) = false
             updateBetaAndLambda()
         }
-        case _ => println("message not recognized!")
+        case _ => println("[MASTER] message not recognized!")
     }
     def createActors(){
        for(a <-0 until noOfPartitions){
@@ -108,35 +125,36 @@ class MasterActor() extends Actor {
                  betaM =0.0
             }
             /*
-            println("Printing in master")
+            println("[MASTER] Printing in master")
             for (i<-0 until noOfExamples){
-                println("Weight " + con_weightsM(i))
+                println("[MASTER] Weight " + con_weightsM(i))
             }
             */
-            println("here noOfPartitions is " + noOfPartitions);
-            println("File Name " + fileName)
+            println("[MASTER] here noOfPartitions is " + noOfPartitions);
+            println("[MASTER] File Name " + fileName)
             for( a <- 0 until noOfPartitions){
                 var actorWorker: ActorRef = ActorFactory.getActor(a)
-                println("Sending beta and lambda updates to actor " + a);
+                println("[MASTER] Sending beta and lambda updates to actor " + a);
                 actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
                 furtherUpdates(a) = true
             }
-            println("Sent updates to all worker actors");
+            println("[MASTER] Sent updates to all worker actors");
     }
     def updateBetaAndLambda() {
-            println("Iteration no is " + iterationNo) 
+            println("[MASTER] Iteration no is " + iterationNo) 
+            println("[MASTER] Check for more updates " + checkIfMoreUpdatesRequired());
             if(!checkIfMoreUpdatesRequired()){
                 // update betaM
                 betaM = 0;
-                println("All fine")
+                println("[MASTER] All fine")
                 for(i <-0 until noOfPartitions){
                     betaM = betaM +lambdas(i) + pho*betas(i)
                 }
-                println("All fine1")
-                println("No of partitions " + noOfPartitions)
-                println("No of examples " + noOfExamples)
-                println("Weights size "+ weights.size + " " + weights(0).size) 
-                println("Con Weights size "+ con_weightsM.size ) 
+                println("[MASTER] All fine1")
+                println("[MASTER] No of partitions " + noOfPartitions)
+                println("[MASTER] No of examples " + noOfExamples)
+                println("[MASTER] Weights size "+ weights.size + " " + weights(0).size) 
+                println("[MASTER] Con Weights size "+ con_weightsM.size ) 
                 for(j <-0 until noOfExamples){
                     con_weightsM(j)=0
                     for(i <-0 until noOfPartitions){
@@ -144,32 +162,55 @@ class MasterActor() extends Actor {
                     }
                     con_weightsM(j) = con_weightsM(j)/(noOfPartitions*pho)
                 }
-                println("All fine2")
+                println("[MASTER] All fine2")
                 betaM = betaM/(noOfPartitions*pho);
 
-                println("Master: BetaM : " + betaM);
+                println("[MASTER] Master: BetaM : " + betaM);
                 // updating con_weightsM
                 // Check if stopping criterion is met
                 if(checkForStoppingCriterion()){
-                    println("Stopping Criterion met.")
+                    println("[MASTER] Stopping Criterion met.")
+                    solvePrimalModel()
+                    println("Primal Model Solved")
                     MainSender.map(_ ! doneProcessing(1))
                     //fileSender.map(_ ! result)  // provide result to process invoker
                     return
                 }
-                println("here noOfPartitions is " + noOfPartitions);
-                println("File Name " + fileName)
+                println("[MASTER] here noOfPartitions is " + noOfPartitions);
+                println("[MASTER] File Name " + fileName)
                 for( a <- 0 until noOfPartitions){
                     var actorWorker: ActorRef = ActorFactory.getActor(a)
-                    println("Sending beta and lambda updates to actor " + a);
+                    println("[MASTER] Sending beta and lambda updates to actor " + a);
                     actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
+                    furtherUpdates(a) = true
                 }
                 iterationNo = iterationNo+1
-                println("here1");
+                println("[MASTER] here1");
             }
     }
     def updateLambdaKBetaK(id:Integer,phi:Array[Double],lambda:Double)={
             lambdas(id) = lambda
             phis(id) = phi
+    }
+    def ReadFile(filename:String) :DataSet={
+        var d = ReadData.buildVector(filename," ")
+        println("[MASTER] Read Data successfully")
+        return d
+    }
+    def solvePrimalModel(): PrimalVariables={
+        var totalHypSet = new Vector[Stump] ()
+        for(i <-0 until noOfPartitions){
+            for( j <-0 until HypothesisSet.get(i).size()){
+                totalHypSet.add(HypothesisSet.get(i).get(j)) 
+            }
+        }
+        var M = D.examples.size()
+        var d = 1.0/(M*0.07f)
+        var pV = LPBoostMaster.solvePrimalModel(D.examples,D.labels,totalHypSet,d)
+        
+        println("Rho " + pV.rho)
+        println("No of hypo " + pV.alphas.size())
+        return pV
     }
 }
 object ActorFactory {
@@ -178,10 +219,10 @@ object ActorFactory {
         actorMap(key) = myActor; 
     }
     def getActor(symbol:Integer): ActorRef = {
-        println("getActor : called with symbol " + symbol)
+        println("[MASTER] getActor : called with symbol " + symbol)
         val wactor : ActorRef = actorMap(symbol) 
         //val wactor : ActorRef = actorMap.get(symbol)
-        println("Returning actor: "+ wactor)
+        println("[MASTER] Returning actor: "+ wactor)
         return wactor
     }
 }

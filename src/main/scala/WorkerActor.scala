@@ -17,58 +17,64 @@ class WorkerActor extends Actor {
     private var D = new DataSet()
     private var firstTime = true
     private var outerIteration =0
+    private var workerObject = new LPBoostWorker()
 
     def this(value: Integer, filename:String) ={
         this()
         this.id = value
         this.filename = filename
-        println("Spwaned Worker Actor with id " + value)
+        println("[ACTOR: " + id + " ] Spwaned Worker Actor with id " + value)
         this.D = ReadFile(filename)
         noOfExamples = D.examples.size()
-        println("File Name " + filename)
+        phi = ofDim[Double](noOfExamples) 
+        weight = ofDim[Double](noOfExamples) 
+        println("[ACTOR: " + id + " ] File Name " + filename)
         firstTime = true
+        workerObject = new LPBoostWorker(value)
     }
     def receive = {
         case updateWeightsBetaLambdaPhi (weightM: Array[Double], betaM: Double) => {
-            println("Outer Iteration no" + outerIteration)
+            println("[ACTOR: " + id + " ] Outer Iteration no" + outerIteration)
             outerIteration = outerIteration +1
-             
-            var pho = 1.0
-            println("No of examples " + D.examples.size())
-            println("No of labels " + D.labels.size())
+
+            var pho = 2.0
+            println("[ACTOR: " + id + " ] No of examples " + D.examples.size())
+            println("[ACTOR: " + id + " ] No of labels " + D.labels.size())
 
             var mV = new MasterVariables(betaM,weightM,lambda,pho,phi,noOfExamples)
-            println("Sending master variables for optimization")
+            println("[ACTOR: " + id + " ] Sending master variables for optimization")
 
-            var wV = LPBoostWorker.optimize(D.examples,D.labels, 0.07f,0.00001f,mV) 
-
+            var wV = workerObject.optimize(D.examples,D.labels, 0.07f,0.00001f,mV) 
+            /*
             for(i<-0 until noOfExamples){
-                println("wV.weights " + wV.weightsk(i))
+                println("[ACTOR: " + id + " ] wV.weights " + wV.weightsk(i))
             }
+             */
 
             var weight = wV.weightsk
             var beta = wV.betak
-            lambda = lambda + pho*(beta -betaM) 
+            lambda = lambda + mV.pho*(beta -betaM) 
 
             for(a<- 0 until noOfExamples){
-                phi(a) = phi(a) + pho*(weight(a) - weightM(a))
+                phi(a) = phi(a) + mV.pho*(weight(a) - weightM(a))
             }
-            println("Lambda " +lambda)
-
+            println("[ACTOR: " + id + " ] Lambda " +lambda)
+            /*
             for(i<-0 until noOfExamples){
-                println("phi " + phi(i))
+                println("[ACTOR: " + id + " ] phi " + phi(i))
             }
+             */
 
-            println("Sending updates to master");
-            sender ! updatedWorkerVariables(id,weight,beta,phi,lambda)
-            println("Sent updates to master");
+            println("[ACTOR: " + id + " ] Sending updates to master");
+            sender ! updatedWorkerVariables(id,weight,beta,phi,lambda,wV.hypSet)
+            println("[ACTOR: " + id + " ] Sent updates to master");
         }
-        case _ => println("Error: Worker Actor: message not recognized")
+        case _ => println("[ACTOR: " + id + " ] Error: Worker Actor: message not recognized")
     }
 
     def ReadFile(filename:String) :DataSet={
         var d = ReadData.buildVector(filename," ")
-        println("Read Data successfully")
+        println("[ACTOR: " + id + " ] Read Data successfully")
         return d
     }
 }
