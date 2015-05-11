@@ -21,7 +21,7 @@ class MasterActor() extends Actor {
     private var MainSender: Option[ActorRef] = None
 
     private var noOfPartitions = 2
-    private var noOfExamples = 3
+    private var noOfExamples = 0
     private var HypothesisSet = new Vector [ Vector [Stump] ]();   
     
     private var weights = ofDim[Double](noOfPartitions,noOfExamples) 
@@ -56,7 +56,11 @@ class MasterActor() extends Actor {
         con_weightsM = ofDim[Double](noOfExamples) 
         pho = 2.0
         var totalHyp = 2*noOfExamples
-        HypothesisSet = new Vector[ Vector [Stump] ](noOfPartitions)
+        for(a <-0 until noOfPartitions){
+            HypothesisSet.add(new Vector[Stump]())
+        }
+        //HypothesisSet = new Vector[ Vector [Stump] ](noOfPartitions)
+        println("[MASTER] : Hypothesis is " + HypothesisSet.size())
     }
     def receive = {
         case startLpBoost() => {
@@ -81,12 +85,23 @@ class MasterActor() extends Actor {
             weights(id) = wK
             betas(id) = betaK
             println("Setting Hypothesis : current size " + HypothesisSet.size())
-            if(HypothesisSet.size() < id){
-                HypothesisSet.set(id,hypothesisSetK)
+            println("Current id " + id)
+            if(HypothesisSet.size() > id){
+                HypothesisSet.set(id, hypothesisSetK)
+                //HypothesisSet.set(id, new Vector[Stump]())
+                /*
+                for(a<-0 until hypothesisSetK.size()){
+                    HypothesisSet.get(id).add(hypothesisSetK.get(a))
+                }
+                */
             }
-            else{
-                HypothesisSet.add(id,hypothesisSetK)
+/*            else{
+                HypothesisSet.add(id,new Vector[Stump]())
+                for(a<-0 until hypothesisSetK.size()){
+                    HypothesisSet.get(id).add(a,hypothesisSetK.get(a))
+                }
             }
+*/
             updateLambdaKBetaK(id,phi,lambda)
             println("[MASTER] Yeyeye")
             furtherUpdates(id) = false

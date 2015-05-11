@@ -74,57 +74,63 @@ public class LPBoostWorker{
     }
 
     public  WorkerVariables optimize(Vector<DataPoint> e, Vector<Integer> l, float v1, float eps,MasterVariables mv){
+        try{
 
-        System.out.println("Inside optimize");
-   
-        Vector<DataPoint> examples =e;
-        Vector<Integer> labels = l;
+            System.out.println("[ACTOR] " + actorId + " Inside optimize");
+       
+            Vector<DataPoint> examples =e;
+            Vector<Integer> labels = l;
 
-        float v=v1;
-        float epsilon = eps;
-        int M = examples.size();
-        float D = 1.0f/(M*v);
+            float v=v1;
+            float epsilon = eps;
+            int M = examples.size();
+            float D = 1.0f/(M*v);
 
 
-        DualVariables dV = new DualVariables(M);
-        System.out.println("here");
-        //Vector<Stump> hypotheses = new Vector<Stump>();
+            DualVariables dV = new DualVariables(M);
+            System.out.println("here");
+            //Vector<Stump> hypotheses = new Vector<Stump>();
 
-        while(true){
-            if(prev_dV!=null){
-                dV = prev_dV;
-            }
-            System.out.println("Finding the most violating constraint");
-            Stump candHyp = getMostViolatingStump(dV.weights,examples,labels);
-            System.out.println("Most Violating Stump: " + candHyp.toString());
-            System.out.println("Epsilon: " + epsilon);
-            float classSum =0f;
-            for(int i=0;i<examples.size();i++){
-                classSum += (dV.weights[i]) * (labels.elementAt(i)) * (candHyp.classify(examples.elementAt(i)));        
-            }   
-            System.out.println("Class sum is: " + classSum);
-            System.out.println("Beta is: " + dV.beta);
-            if((classSum <= (dV.beta + epsilon)) || (hypotheses.size() >= M)){
-                System.out.println("Breaking out");
-                // Since master has send updates its variables might have changed
+            while(true){
+                if(prev_dV!=null){
+                    dV = prev_dV;
+                }
+                System.out.println("[ACTOR] " + actorId + " Finding the most violating constraint");
+                Stump candHyp = getMostViolatingStump(dV.weights,examples,labels);
+                System.out.println("[ACTOR] " + actorId + " Most Violating Stump: " + candHyp.toString());
+                System.out.println("Epsilon: " + epsilon);
+                float classSum =0f;
+                for(int i=0;i<examples.size();i++){
+                    classSum += (dV.weights[i]) * (labels.elementAt(i)) * (candHyp.classify(examples.elementAt(i)));        
+                }   
+                System.out.println("Class sum is: " + classSum);
+                System.out.println("Beta is: " + dV.beta);
+                if((classSum <= (dV.beta + epsilon)) || (hypotheses.size() >= M)){
+                    System.out.println("[ACTOR] " + actorId + " Breaking out");
+                    // Since master has send updates its variables might have changed
+                    dV = solveOptimization(examples,labels,hypotheses,D,mv);
+                    prev_dV = null;
+                    prev_dV = dV;
+                    break;
+                }   
+                hypotheses.add(candHyp);
+                System.out.println("[ACTOR] " + actorId + " Hypostesis set size " + hypotheses.size());
                 dV = solveOptimization(examples,labels,hypotheses,D,mv);
                 prev_dV = null;
                 prev_dV = dV;
-                break;
-            }   
-            hypotheses.add(candHyp);
-            System.out.println("Hypostesis set size " + hypotheses.size());
-            dV = solveOptimization(examples,labels,hypotheses,D,mv);
-            prev_dV = null;
-            prev_dV = dV;
-        }
+            }
 
-        mv.lambdak = mv.lambdak + mv.pho*(dV.beta - mv.beta);
-        for(int i =0;i<examples.size();i++){
-            mv.psik[i]= mv.psik[i] + mv.pho*(dV.weights[i] - mv.weights[i]);
+            mv.lambdak = mv.lambdak + mv.pho*(dV.beta - mv.beta);
+            for(int i =0;i<examples.size();i++){
+                mv.psik[i]= mv.psik[i] + mv.pho*(dV.weights[i] - mv.weights[i]);
+            }
+            WorkerVariables wV = new WorkerVariables(examples.size(), dV.beta,dV.weights, mv.lambdak, mv.psik,hypotheses);
+            return wV;
         }
-        WorkerVariables wV = new WorkerVariables(examples.size(), dV.beta,dV.weights, mv.lambdak, mv.psik,hypotheses);
-        return wV;
+        catch(Exception b){
+            b.printStackTrace();
+            return null;
+        }
     }
     
     public DualVariables solveOptimization(Vector<DataPoint> examples, Vector<Integer> labels, Vector<Stump> hypotheses, float d, MasterVariables mv){
@@ -173,7 +179,7 @@ public class LPBoostWorker{
                 return dV;
             }
             else{
-                System.out.println("Model not solved");
+                System.out.println("[ACTOR] " + actorId + " Model not solved");
             }
         
         }

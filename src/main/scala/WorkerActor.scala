@@ -45,11 +45,6 @@ class WorkerActor extends Actor {
             println("[ACTOR: " + id + " ] Sending master variables for optimization")
 
             var wV = workerObject.optimize(D.examples,D.labels, 0.07f,0.00001f,mV) 
-            /*
-            for(i<-0 until noOfExamples){
-                println("[ACTOR: " + id + " ] wV.weights " + wV.weightsk(i))
-            }
-             */
 
             var weight = wV.weightsk
             var beta = wV.betak
@@ -59,11 +54,6 @@ class WorkerActor extends Actor {
                 phi(a) = phi(a) + mV.pho*(weight(a) - weightM(a))
             }
             println("[ACTOR: " + id + " ] Lambda " +lambda)
-            /*
-            for(i<-0 until noOfExamples){
-                println("[ACTOR: " + id + " ] phi " + phi(i))
-            }
-             */
 
             println("[ACTOR: " + id + " ] Sending updates to master");
             sender ! updatedWorkerVariables(id,weight,beta,phi,lambda,wV.hypSet)
