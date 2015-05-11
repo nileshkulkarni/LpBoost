@@ -228,6 +228,13 @@ class MasterActor() extends Actor {
         
         println("Rho " + pV.rho)
         println("No of hypo " + pV.alphas.size())
+        var nonZeroCount=0
+        for(i<-0 until pV.alphas.size()){
+            if(pV.alphas.get(i) > 1E-5){
+                nonZeroCount = nonZeroCount+1
+            }
+        }
+        println("Non Zero Hyp Count " + nonZeroCount)
         var boostClassfier = new BoostClassifier(pV.alphas, totalHypSet)
         getAccuracy(testFile,boostClassfier)
         return pV
