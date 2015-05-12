@@ -20,7 +20,7 @@ class MasterActor() extends Actor {
 
     private var MainSender: Option[ActorRef] = None
 
-    private var noOfPartitions = 2
+    private var noOfPartitions = 1
     private var noOfExamples = 0
     private var HypothesisSet = new Vector [ Vector [Stump] ]();   
     
@@ -38,27 +38,35 @@ class MasterActor() extends Actor {
     private var fileName="NULL"
     private var testFile="NULL"
 
-    private var maxOuterIterations = 10
+    private var maxOuterIterations = 80
 
     private var iterationNo = 0
     private var pho =0.0
     private var temp: Int = 1
 
+    private var af  = new ActorFactory();
+
     private var D = new DataSet()
-    def this( fileName:String,testFile: String) ={
+    def this( fileName:String,testFile: String,noOfPartitions:Integer) ={
         this();
         this.fileName = fileName
         this.testFile = testFile 
         this.D = ReadFile(fileName)
+        this.noOfPartitions = noOfPartitions
+        println("[MASTER] : No of partitions " + noOfPartitions)
         noOfExamples = D.examples.size()
         weights = ofDim[Double](noOfPartitions,noOfExamples) 
+        betas = ofDim[Double](noOfPartitions) 
+        lambdas = ofDim[Double](noOfPartitions) 
         phis = ofDim[Double](noOfPartitions,noOfExamples) 
+        furtherUpdates = ofDim[Boolean](noOfPartitions)
         con_weightsM = ofDim[Double](noOfExamples) 
         pho = 2.0
         var totalHyp = 2*noOfExamples
         for(a <-0 until noOfPartitions){
             HypothesisSet.add(new Vector[Stump]())
         }
+        this.af = new ActorFactory(noOfPartitions)
         //HypothesisSet = new Vector[ Vector [Stump] ](noOfPartitions)
         println("[MASTER] : Hypothesis is " + HypothesisSet.size())
     }
@@ -115,7 +123,8 @@ class MasterActor() extends Actor {
        }
 
        for(a <-0 until noOfPartitions){
-            ActorFactory.addActor(a,context.actorOf(Props(new WorkerActor(a,fileName)))) 
+            //ActorFactory.addActor(a,context.actorOf(Props(new WorkerActor(a,fileName,noOfPartitions)))) 
+            af.addActor(a,context.actorOf(Props(new WorkerActor(a,fileName,noOfPartitions)))) 
        }
     }
 
@@ -151,7 +160,8 @@ class MasterActor() extends Actor {
             println("[MASTER] here noOfPartitions is " + noOfPartitions);
             println("[MASTER] File Name " + fileName)
             for( a <- 0 until noOfPartitions){
-                var actorWorker: ActorRef = ActorFactory.getActor(a)
+                //var actorWorker: ActorRef = ActorFactory.getActor(a)
+                var actorWorker: ActorRef = af.getActor(a)
                 println("[MASTER] Sending beta and lambda updates to actor " + a);
                 actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
                 furtherUpdates(a) = true
@@ -197,7 +207,8 @@ class MasterActor() extends Actor {
                 println("[MASTER] here noOfPartitions is " + noOfPartitions);
                 println("[MASTER] File Name " + fileName)
                 for( a <- 0 until noOfPartitions){
-                    var actorWorker: ActorRef = ActorFactory.getActor(a)
+                    //var actorWorker: ActorRef = ActorFactory.getActor(a)
+                    var actorWorker: ActorRef = af.getActor(a)
                     println("[MASTER] Sending beta and lambda updates to actor " + a);
                     actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
                     furtherUpdates(a) = true
@@ -231,6 +242,7 @@ class MasterActor() extends Actor {
         var nonZeroCount=0
         for(i<-0 until pV.alphas.size()){
             if(pV.alphas.get(i) > 1E-5){
+                println("[MASTER] Stump : " + totalHypSet.get(i).toString() + " weight " + pV.alphas.get(i) )
                 nonZeroCount = nonZeroCount+1
             }
         }
@@ -254,8 +266,15 @@ class MasterActor() extends Actor {
         return acc 
     }
 }
-object ActorFactory {
-    val actorMap = ofDim[ActorRef](2)
+class ActorFactory {
+    private  var actorMap = ofDim[ActorRef](3)
+    private var noOfPartitions=0
+    def this(noOfPartitions: Integer) ={
+        this();
+        this.noOfPartitions = noOfPartitions
+        println("[MASTER] : noOfPartitions " + noOfPartitions)
+        this.actorMap = ofDim[ActorRef](noOfPartitions)
+    }
     def addActor(key: Integer,myActor: ActorRef)={
         actorMap(key) = myActor; 
     }
@@ -267,3 +286,18 @@ object ActorFactory {
         return wactor
     }
 }
+/*
+object ActorFactory {
+    val actorMap = ofDim[ActorRef](3)
+    def addActor(key: Integer,myActor: ActorRef)={
+        actorMap(key) = myActor; 
+    }
+    def getActor(symbol:Integer): ActorRef = {
+        println("[MASTER] getActor : called with symbol " + symbol)
+        val wactor : ActorRef = actorMap(symbol) 
+        //val wactor : ActorRef = actorMap.get(symbol)
+        println("[MASTER] Returning actor: "+ wactor)
+        return wactor
+    }
+}
+*/

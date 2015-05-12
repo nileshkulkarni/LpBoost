@@ -36,27 +36,45 @@ public class LPBoostWorker{
     private DualVariables prev_dV;
     private Vector<Stump> hypotheses ;
     private int actorId;
+    private int totalActors;
 
     LPBoostWorker(){
         actorId =-1;
     }
-    LPBoostWorker(int id){
+    LPBoostWorker(int id,int totalActors){
         prev_dV=null;
         hypotheses = new Vector<Stump>();
         actorId = id;
+        this.totalActors = totalActors;
     }
     public  Stump getMostViolatingStump(double[] weights, Vector<DataPoint> examples, Vector<Integer> labels){
        float highestError=Float.NEGATIVE_INFINITY;
         Stump bestLearner=null;
+        
         for(int i =0;i<examples.elementAt(0).size();i++){
-            Stump stump1 = new Stump(i, true);
-            Stump stump2 = new Stump(i, false);
-            float sum1=0f;
-            float sum2=0f;
-            for(int j=0;j<examples.size();j++){
-                sum1 += (stump1.classify(examples.elementAt(j))) * (labels.elementAt(j)) * (weights[j]);
-                sum2 += (stump2.classify(examples.elementAt(j))) * (labels.elementAt(j)) * (weights[j]);
-            }   
+            
+            if((i%totalActors) ==actorId){
+                Stump stump1 = new Stump(i, true);
+                Stump stump2 = new Stump(i, false);
+                float sum1=0f;
+                float sum2=0f;
+                for(int j=0;j<examples.size();j++){
+                    sum1 += (stump1.classify(examples.elementAt(j))) * (labels.elementAt(j)) * (weights[j]);
+                    sum2 += (stump2.classify(examples.elementAt(j))) * (labels.elementAt(j)) * (weights[j]);
+                }   
+                if(sum1>highestError){
+                    highestError=sum1;
+                    bestLearner=new Stump(stump1.index,stump1.orientation);
+                }   
+                if(sum2>highestError){
+                    highestError=sum2;
+                    bestLearner=new Stump(stump2.index,stump2.orientation);
+                }
+                if(i ==0){
+                    System.out.println("[ACTOR] " + actorId+" Class sum for ind =0 is:  " + sum1 +" : " + sum2);
+                }
+            }
+            /*
             if((actorId % 2) == 1){
                 if(sum1>highestError){
                     highestError=sum1;
@@ -69,6 +87,7 @@ public class LPBoostWorker{
                     bestLearner=new Stump(stump2.index,stump2.orientation);
                 }
             }
+            */
         }
         return bestLearner;
     }
@@ -159,8 +178,10 @@ public class LPBoostWorker{
             for(int i =0;i<examples.size();i++){
                 objective = cplex.sum(objective,cplex.prod(mv.psik[i],weightsK[i]));
             }
-            objective = cplex.sum(0,cplex.prod(mv.pho/2, cplex.prod(cplex.diff(betak,mv.beta), cplex.diff(betak,mv.beta))));
+            objective = cplex.sum(objective,cplex.prod(mv.pho/2, cplex.prod(cplex.diff(betak,mv.beta), cplex.diff(betak,mv.beta))));
+            //objective = cplex.sum(objective,cplex.prod(mv.pho/2, IloAbs(cplex.diff(betak,mv.beta))));
             if(examples.size() > 0){
+                //IloNumExpr augLag1 = cplex.sum(0,cplex.prod(cplex.diff(weightsK[0],mv.weights[0]),cplex.diff(weightsK[0],mv.weights[0])));
                 IloNumExpr augLag1 = cplex.sum(0,cplex.prod(cplex.diff(weightsK[0],mv.weights[0]),cplex.diff(weightsK[0],mv.weights[0])));
                 for(int i =1;i<examples.size();i++){
                     augLag1 = cplex.sum(augLag1,cplex.prod(cplex.diff(weightsK[i],mv.weights[i]),cplex.diff(weightsK[i],mv.weights[i])));

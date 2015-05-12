@@ -18,11 +18,13 @@ class WorkerActor extends Actor {
     private var firstTime = true
     private var outerIteration =0
     private var workerObject = new LPBoostWorker()
+    private var totalActors=0
 
-    def this(value: Integer, filename:String) ={
+    def this(value: Integer, filename:String,totalActors: Integer) ={
         this()
         this.id = value
         this.filename = filename
+        this.totalActors = totalActors
         println("[ACTOR: " + id + " ] Spwaned Worker Actor with id " + value)
         this.D = ReadFile(filename)
         noOfExamples = D.examples.size()
@@ -30,7 +32,7 @@ class WorkerActor extends Actor {
         weight = ofDim[Double](noOfExamples) 
         println("[ACTOR: " + id + " ] File Name " + filename)
         firstTime = true
-        workerObject = new LPBoostWorker(value)
+        workerObject = new LPBoostWorker(value,totalActors)
     }
     def receive = {
         case updateWeightsBetaLambdaPhi (weightM: Array[Double], betaM: Double) => {
