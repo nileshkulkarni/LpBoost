@@ -39,7 +39,7 @@ class WorkerActor extends Actor {
             println("[ACTOR: " + id + " ] Outer Iteration no" + outerIteration)
             outerIteration = outerIteration +1
 
-            var pho = 2.0
+            var pho = 5.0
             println("[ACTOR: " + id + " ] No of examples " + D.examples.size())
             println("[ACTOR: " + id + " ] No of labels " + D.labels.size())
 

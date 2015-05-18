@@ -155,6 +155,7 @@ public class LPBoostWorker{
     public DualVariables solveOptimization(Vector<DataPoint> examples, Vector<Integer> labels, Vector<Stump> hypotheses, float d, MasterVariables mv){
         try{
             IloCplex cplex = new IloCplex();
+            cplex.setOut(null);
             IloNumVar betak = cplex.numVar(Double.NEGATIVE_INFINITY,Double.POSITIVE_INFINITY);
             IloNumVar[] weightsK = cplex.numVarArray(examples.size(),0.0,d);
             // Hyposthesis Constraints

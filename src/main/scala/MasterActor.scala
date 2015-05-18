@@ -38,7 +38,7 @@ class MasterActor() extends Actor {
     private var fileName="NULL"
     private var testFile="NULL"
 
-    private var maxOuterIterations = 80
+    private var maxOuterIterations = 0
 
     private var iterationNo = 0
     private var pho =0.0
@@ -47,10 +47,11 @@ class MasterActor() extends Actor {
     private var af  = new ActorFactory();
 
     private var D = new DataSet()
-    def this( fileName:String,testFile: String,noOfPartitions:Integer) ={
+    def this( fileName:String,testFile: String,noOfPartitions:Integer,maxOuterIterations:Integer) ={
         this();
         this.fileName = fileName
         this.testFile = testFile 
+        this.maxOuterIterations = maxOuterIterations
         this.D = ReadFile(fileName)
         this.noOfPartitions = noOfPartitions
         println("[MASTER] : No of partitions " + noOfPartitions)
@@ -61,7 +62,7 @@ class MasterActor() extends Actor {
         phis = ofDim[Double](noOfPartitions,noOfExamples) 
         furtherUpdates = ofDim[Boolean](noOfPartitions)
         con_weightsM = ofDim[Double](noOfExamples) 
-        pho = 2.0
+        pho = 5.0
         var totalHyp = 2*noOfExamples
         for(a <-0 until noOfPartitions){
             HypothesisSet.add(new Vector[Stump]())
@@ -173,6 +174,9 @@ class MasterActor() extends Actor {
             println("[MASTER] Check for more updates " + checkIfMoreUpdatesRequired());
             if(!checkIfMoreUpdatesRequired()){
                 // update betaM
+                var currObj =calculteCurrentObjectiveValue()
+                println("Function Objective "+ iterationNo + " " + currObj+ " ")
+
                 betaM = 0;
                 println("[MASTER] All fine")
                 for(i <-0 until noOfPartitions){
@@ -213,6 +217,12 @@ class MasterActor() extends Actor {
                     actorWorker ! updateWeightsBetaLambdaPhi(con_weightsM,betaM)
                     furtherUpdates(a) = true
                 }
+                var overallError=0.0;
+                for(a <- 0 until noOfPartitions){
+                    overallError = overallError + (betaM -betas(a)*betaM -betas(a))
+                }
+                val consensusError = calculateConsensus()
+                println("Consensus Error " +iterationNo+" "+ consensusError +" ")
                 iterationNo = iterationNo+1
                 println("[MASTER] here1");
             }
@@ -220,6 +230,32 @@ class MasterActor() extends Actor {
     def updateLambdaKBetaK(id:Integer,phi:Array[Double],lambda:Double)={
             lambdas(id) = lambda
             phis(id) = phi
+    }
+    def calculateConsensus():Double={
+        var objVal = betaM
+        for(i <- 0 until noOfPartitions){
+            objVal = objVal + (betas(i) -betaM)*(betas(i) -betaM)
+            var tempSum =0.0
+            for(j <-0 until noOfExamples){
+                tempSum = tempSum + (weights(i)(j) - con_weightsM(j))*(weights(i)(j) - con_weightsM(j))
+            }
+            objVal= objVal + tempSum
+        }
+        return objVal
+    }
+    def calculteCurrentObjectiveValue():Double={
+        var objVal = betaM
+        for(i <- 0 until noOfPartitions){
+            objVal = objVal + lambdas(i)*(betas(i) -betaM)
+            objVal = objVal + (pho/2)*(betas(i) -betaM)*(betas(i) -betaM)
+            var tempSum =0.0
+            for(j <-0 until noOfExamples){
+                objVal = objVal + phis(i)(j)*(weights(i)(j) - con_weightsM(j))
+                tempSum = tempSum + (weights(i)(j) - con_weightsM(j))*(weights(i)(j) - con_weightsM(j))
+            }
+            objVal= objVal + (pho/2)*tempSum
+        }
+        return objVal
     }
     def ReadFile(filename:String) :DataSet={
         var d = ReadData.buildVector(filename," ")
@@ -238,7 +274,7 @@ class MasterActor() extends Actor {
         var pV = LPBoostMaster.solvePrimalModel(D.examples,D.labels,totalHypSet,d)
         
         println("Rho " + pV.rho)
-        println("No of hypo " + pV.alphas.size())
+        println("Total hypothesis Count " + pV.alphas.size()+" ")
         var nonZeroCount=0
         for(i<-0 until pV.alphas.size()){
             if(pV.alphas.get(i) > 1E-5){
@@ -246,7 +282,7 @@ class MasterActor() extends Actor {
                 nonZeroCount = nonZeroCount+1
             }
         }
-        println("Non Zero Hyp Count " + nonZeroCount)
+        println("Non Zero Hyp Count " + nonZeroCount+" ")
         var boostClassfier = new BoostClassifier(pV.alphas, totalHypSet)
         getAccuracy(testFile,boostClassfier)
         return pV
@@ -262,7 +298,7 @@ class MasterActor() extends Actor {
                 correct = correct+1
         }
         var acc = correct/total
-        println("acc is " + acc)
+        println("Acc is " + acc+ " ")
         return acc 
     }
 }

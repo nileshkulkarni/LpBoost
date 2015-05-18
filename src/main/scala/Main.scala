@@ -15,13 +15,16 @@ object Main extends App {
 
 
         override def main(args: Array[String]) {
+            val startTime= System.currentTimeMillis()
             val system = ActorSystem("System")
-            val actor = system.actorOf(Props(new MasterActor(args(0),args(1),args(2).toInt)))
+            val actor = system.actorOf(Props(new MasterActor(args(0),args(1),args(2).toInt,args(3).toInt)))
             implicit val ec = global
             implicit val timeout = Timeout(125 seconds)
             val future = actor ? startLpBoost()
             future.map { result => 
                 println("Total number of words " + result)
+                val endTime= System.currentTimeMillis()
+                println("Total Time " + (endTime-startTime)+" ")
                     system.shutdown
             }           
         }           
